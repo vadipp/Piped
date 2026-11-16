@@ -177,7 +177,8 @@
         "hide_password": "Скрыть пароль",
         "clear": "Очистить",
         "rss_feed": "RSS feed",
-        "playlist_rss_feed": "Playlist RSS feed"
+        "playlist_rss_feed": "Playlist RSS feed",
+        "retry_share": "Повторить"
     },
     "comment": {
         "pinned_by": "Закреплено пользователем {author}",
@@ -251,6 +252,7 @@
         "success": "Успешно",
         "error": "Ошибка",
         "found_n_items": "Найдено {0} предметов",
-        "skipped": "Пропущено"
+        "skipped": "Пропущено",
+        "share_link_failed": "Не удалось создать ссылку. Попробуйте ещё раз."
     }
 }

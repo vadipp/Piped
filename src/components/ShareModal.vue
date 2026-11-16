@@ -6,7 +6,7 @@
             <UiCheckbox v-model="pipedLink" @change="onChange" />
         </div>
         <hr />
-        <div v-if="hasPlaylist" class="flex justify-between">
+        <div v-if="hasPlaylist && !sharingEnabled" class="flex justify-between">
             <label v-t="'actions.with_playlist'" />
             <UiCheckbox v-model="withPlaylist" @change="onChange" />
         </div>
@@ -24,20 +24,23 @@
             />
         </div>
         <hr />
-        <a :href="generatedLink" target="_blank">
+        <p v-if="shareLoading" role="status" v-text="t('info.loading')" />
+        <p v-if="shareError" role="alert" v-text="t('info.share_link_failed')" />
+        <Button v-if="shareError" @click="createShare" v-text="t('actions.retry_share')" />
+        <a v-if="generatedLink" :href="generatedLink" target="_blank" rel="noopener noreferrer">
             <h3 class="mt-4" v-text="generatedLink" />
         </a>
-        <QrCode v-if="showQrCode" :text="generatedLink" />
+        <QrCode v-if="showQrCode && generatedLink" :text="generatedLink" />
         <div class="mt-4 flex justify-end">
-            <Button v-t="'actions.generate_qrcode'" @click="showQrCode = !showQrCode" />
-            <Button v-t="'actions.follow_link'" class="ml-3" @click="followLink()" />
-            <Button v-t="'actions.copy_link'" class="ml-3" @click="copyLink()" />
+            <Button v-t="'actions.generate_qrcode'" :disabled="!generatedLink" @click="showQrCode = !showQrCode" />
+            <Button v-t="'actions.follow_link'" :disabled="!generatedLink" class="ml-3" @click="followLink()" />
+            <Button v-t="'actions.copy_link'" :disabled="!generatedLink" class="ml-3" @click="copyLink()" />
         </div>
     </ModalComponent>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineAsyncComponent } from "vue";
+import { ref, computed, onMounted, watch, defineAsyncComponent } from "vue";
 import { useI18n } from "vue-i18n";
 import ModalComponent from "./ModalComponent.vue";
 import Button from "./ui/Button.vue";
@@ -75,16 +78,62 @@ const withPlaylist = ref(true);
 const timeStamp = ref(null);
 const hasPlaylist = ref(false);
 const showQrCode = ref(false);
+// Optional runtime configuration, supplied by the instance operator before Vue loads.
+// Keep ordinary upstream links on instances without a sharing gateway.
+const sharingEndpoint = window.PIPED_SHARING_API;
+const sharingEnabled = typeof sharingEndpoint === "string" && sharingEndpoint.length > 0;
+const shareURL = ref("");
+const shareLoading = ref(false);
+const shareError = ref(false);
+let shareRequest = 0;
+
+async function createShare() {
+    if (!sharingEnabled || !pipedLink.value) return;
+    const request = ++shareRequest;
+    shareURL.value = "";
+    shareLoading.value = true;
+    shareError.value = false;
+    try {
+        const endpoint = new URL(sharingEndpoint, window.location.origin);
+        if (endpoint.origin !== window.location.origin) throw new Error("Sharing endpoint must be same-origin");
+        const response = await fetch(endpoint, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ videoId: props.videoId }),
+        });
+        if (!response.ok) throw new Error("Unable to create shared link");
+        const result = await response.json();
+        const url = new URL(result.url);
+        if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Invalid shared link");
+        if (request === shareRequest) shareURL.value = url.href;
+    } catch {
+        if (request === shareRequest) shareError.value = true;
+    } finally {
+        if (request === shareRequest) shareLoading.value = false;
+    }
+}
+
+watch([pipedLink, () => props.videoId], () => {
+    ++shareRequest;
+    shareLoading.value = false;
+    shareError.value = false;
+    shareURL.value = "";
+    createShare();
+});
 
 const generatedLink = computed(() => {
+    if (pipedLink.value && sharingEnabled && !shareURL.value) return "";
     const baseUrl = pipedLink.value
-        ? window.location.origin + "/watch?v=" + props.videoId
+        ? sharingEnabled
+            ? shareURL.value
+            : window.location.origin + "/watch?v=" + props.videoId
         : "https://youtu.be/" + props.videoId;
     const url = new URL(baseUrl);
 
     if (withTimeCode.value && timeStamp.value) url.searchParams.append("t", parseTimeStampToSeconds(timeStamp.value));
 
-    if (hasPlaylist.value && withPlaylist.value) {
+    if (hasPlaylist.value && withPlaylist.value && !sharingEnabled) {
         url.searchParams.append("list", props.playlistId);
         url.searchParams.append("index", props.playlistIndex);
     }
@@ -98,14 +147,15 @@ onMounted(() => {
     pipedLink.value = getPreferenceBoolean("shareAsPipedLink", true);
     withPlaylist.value = getPreferenceBoolean("shareWithPlaylist", true);
     hasPlaylist.value = props.playlistId != undefined && !isNaN(props.playlistIndex);
+    createShare();
 });
 
 function followLink() {
-    window.open(generatedLink.value, "_blank").focus();
+    if (generatedLink.value) window.open(generatedLink.value, "_blank", "noopener,noreferrer");
 }
 
 async function copyLink() {
-    await copyURL(generatedLink.value);
+    if (generatedLink.value) await copyURL(generatedLink.value);
 }
 
 async function copyURL(mytext) {

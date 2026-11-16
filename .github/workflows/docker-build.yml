@@ -9,6 +9,7 @@ on:
 
 jobs:
     build-docker-image:
+        if: github.repository == 'TeamPiped/Piped'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6

@@ -1,0 +1,49 @@
+name: Sharing frontend image
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --check src/components/ShareModal.vue src/locales/en.json src/locales/ru.json
+      - run: pnpm exec eslint src/components/ShareModal.vue
+      - run: pnpm build && ./localizefonts.sh && mv dist dist-ci
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ci
+          load: true
+          tags: piped-sharing-frontend:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+      - name: Export image
+        run: |
+          docker save piped-sharing-frontend:${GITHUB_SHA} | gzip -1 > image.tar.gz
+          sha256sum image.tar.gz > image.tar.gz.sha256
+          docker inspect --format '{{.Id}}' piped-sharing-frontend:${GITHUB_SHA} > image-id.txt
+          printf '%s\n' "$GITHUB_SHA" > revision.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-image
+          path: |
+            image.tar.gz
+            image.tar.gz.sha256
+            image-id.txt
+            revision.txt
+      - name: Publish image bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "image-${GITHUB_SHA}" image.tar.gz image.tar.gz.sha256 image-id.txt revision.txt --title "Sharing frontend ${GITHUB_SHA:0:12}" --notes "Linux amd64 frontend image built from this revision. No instance configuration is included."

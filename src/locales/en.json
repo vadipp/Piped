@@ -177,7 +177,8 @@
         "show_password": "Show password",
         "hide_password": "Hide password",
         "rss_feed": "RSS feed",
-        "playlist_rss_feed": "Playlist RSS feed"
+        "playlist_rss_feed": "Playlist RSS feed",
+        "retry_share": "Retry"
     },
     "comment": {
         "pinned_by": "Pinned by {author}",
@@ -251,6 +252,7 @@
         "success": "Success",
         "error": "Error",
         "skipped": "Skipped",
-        "selected_subscriptions": "Selected subscriptions"
+        "selected_subscriptions": "Selected subscriptions",
+        "share_link_failed": "Unable to create a shared link. Please retry."
     }
 }
