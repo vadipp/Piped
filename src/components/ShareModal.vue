@@ -26,7 +26,7 @@
         <hr />
         <p v-if="shareLoading" role="status" v-text="t('info.loading')" />
         <p v-if="shareError" role="alert" v-text="t('info.share_link_failed')" />
-        <Button v-if="shareError" @click="createShare" v-text="t('actions.retry_share')" />
+        <Button v-if="shareError" v-t="'actions.retry_share'" @click="createShare" />
         <a v-if="generatedLink" :href="generatedLink" target="_blank" rel="noopener noreferrer">
             <h3 class="mt-4" v-text="generatedLink" />
         </a>
