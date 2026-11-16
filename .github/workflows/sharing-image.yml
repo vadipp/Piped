@@ -18,8 +18,8 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec prettier --check src/components/ShareModal.vue src/locales/en.json src/locales/ru.json
-      - run: pnpm exec eslint src/components/ShareModal.vue
+      - run: pnpm exec prettier --check src/components/ModalComponent.vue tests/sharing.cjs src/components/ShareModal.vue src/locales/en.json src/locales/ru.json
+      - run: pnpm exec eslint src/components/ShareModal.vue src/components/ModalComponent.vue tests/sharing.cjs
       - run: pnpm build && ./localizefonts.sh
       - name: Browser sharing flow
         run: |

@@ -3,7 +3,8 @@
         <DialogPortal>
             <DialogOverlay class="fixed inset-0 z-50 bg-gray-500/80 transition-opacity dark:bg-dark-900/80" />
             <DialogContent
-                class="fixed top-1/2 left-1/2 z-50 w-min min-w-[20vw] -translate-1/2 rounded-xl bg-white p-5 text-black focus:outline-none dark:bg-dark-700 dark:text-white"
+                class="fixed top-1/2 left-1/2 z-50 -translate-1/2 rounded-xl bg-white p-5 text-black focus:outline-none dark:bg-dark-700 dark:text-white"
+                :class="contentClass"
             >
                 <DialogClose as-child>
                     <button
@@ -21,6 +22,13 @@
 
 <script setup>
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot } from "reka-ui";
+
+defineProps({
+    contentClass: {
+        type: String,
+        default: "w-min min-w-[20vw]",
+    },
+});
 
 const emit = defineEmits(["close"]);
 

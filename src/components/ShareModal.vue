@@ -1,5 +1,5 @@
 <template>
-    <ModalComponent>
+    <ModalComponent content-class="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] min-w-0 max-w-xl overflow-y-auto">
         <h2 v-t="'actions.share'" class="mb-5" />
         <div class="flex justify-between">
             <label v-t="'actions.piped_link'" />
@@ -27,14 +27,20 @@
         <p v-if="shareLoading" role="status" v-text="t('actions.loading')" />
         <p v-if="shareError" role="alert" v-text="t('info.share_link_failed')" />
         <Button v-if="shareError" v-t="'actions.retry_share'" @click="createShare" />
-        <a v-if="generatedLink" :href="generatedLink" target="_blank" rel="noopener noreferrer">
+        <a
+            v-if="generatedLink"
+            :href="generatedLink"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block min-w-0 [overflow-wrap:anywhere]"
+        >
             <h3 class="mt-4" v-text="generatedLink" />
         </a>
-        <QrCode v-if="showQrCode && generatedLink" :text="generatedLink" />
-        <div class="mt-4 flex justify-end">
+        <QrCode v-if="showQrCode && generatedLink" :text="generatedLink" class="h-auto max-w-full" />
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Button v-t="'actions.generate_qrcode'" :disabled="!generatedLink" @click="showQrCode = !showQrCode" />
-            <Button v-t="'actions.follow_link'" :disabled="!generatedLink" class="ml-3" @click="followLink()" />
-            <Button v-t="'actions.copy_link'" :disabled="!generatedLink" class="ml-3" @click="copyLink()" />
+            <Button v-t="'actions.follow_link'" :disabled="!generatedLink" @click="followLink()" />
+            <Button v-t="'actions.copy_link'" :disabled="!generatedLink" @click="copyLink()" />
         </div>
     </ModalComponent>
 </template>
