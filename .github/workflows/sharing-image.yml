@@ -20,7 +20,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prettier --check src/components/ShareModal.vue src/locales/en.json src/locales/ru.json
       - run: pnpm exec eslint src/components/ShareModal.vue
-      - run: pnpm build && ./localizefonts.sh && mv dist dist-ci
+      - run: pnpm build && ./localizefonts.sh
+      - name: Browser sharing flow
+        run: |
+          npm install --prefix /tmp/sharing-browser --no-package-lock playwright@1.56.1
+          /tmp/sharing-browser/node_modules/.bin/playwright install --with-deps chromium
+          pnpm preview --host localhost > /tmp/preview.log 2>&1 &
+          NODE_PATH=/tmp/sharing-browser/node_modules node tests/sharing.cjs
+      - run: mv dist dist-ci
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:

@@ -24,7 +24,7 @@
             />
         </div>
         <hr />
-        <p v-if="shareLoading" role="status" v-text="t('info.loading')" />
+        <p v-if="shareLoading" role="status" v-text="t('actions.loading')" />
         <p v-if="shareError" role="alert" v-text="t('info.share_link_failed')" />
         <Button v-if="shareError" v-t="'actions.retry_share'" @click="createShare" />
         <a v-if="generatedLink" :href="generatedLink" target="_blank" rel="noopener noreferrer">
@@ -177,16 +177,11 @@ function parseTimeStampToSeconds(timestamp) {
 }
 
 function parseSecondsToTimeStamp(seconds) {
-    const timeArray = [];
-    const durationsReversed = durations.toReversed();
-    for (let i in durationsReversed) {
-        const currentValue = Math.floor(seconds / durationsReversed[i]);
-        if (currentValue > 0) {
-            timeArray.push(currentValue.toString().padStart(2, "0"));
-            seconds -= currentValue * durationsReversed[i];
-        }
-    }
-    return timeArray.join(":");
+    const total = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const remainder = String(total % 60).padStart(2, "0");
+    return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}` : `${minutes}:${remainder}`;
 }
 
 function onChange() {
