@@ -4,10 +4,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ headless: true, timeout: 20000 });
     fs.mkdirSync("test-results", { recursive: true });
     try {
         const context = await browser.newContext({ viewport: { width: 390, height: 740 }, serviceWorkers: "block" });
+        context.setDefaultTimeout(10000);
+        context.setDefaultNavigationTimeout(15000);
         await context.addInitScript(() => {
             localStorage.setItem("instance", "http://localhost:4173/api");
             localStorage.setItem("sponsorblock", "false");
@@ -44,6 +46,47 @@ const fs = require("node:fs");
             thumbnail: "/fixture-avatar.svg",
         });
         const page = await context.newPage();
+        // Model an existing installation with the application's current DB schema.
+        await page.route("**/fixture-bootstrap", route =>
+            route.fulfill({ contentType: "text/html", body: "<html></html>" }),
+        );
+        await page.goto("http://localhost:4173/fixture-bootstrap");
+        await page.evaluate(
+            () =>
+                new Promise((resolve, reject) => {
+                    const request = indexedDB.open("piped-db", 6);
+                    request.onupgradeneeded = () => {
+                        const db = request.result;
+                        const history = db.createObjectStore("watch_history", { keyPath: "videoId" });
+                        history.createIndex("video_id_idx", "videoId", { unique: true });
+                        history.createIndex("id_idx", "id", { unique: true });
+                        history.createIndex("watchedAt", "watchedAt");
+                        const bookmarks = db.createObjectStore("playlist_bookmarks", { keyPath: "playlistId" });
+                        bookmarks.createIndex("playlist_id_idx", "playlistId", { unique: true });
+                        bookmarks.createIndex("id_idx", "id", { unique: true });
+                        db.createObjectStore("channel_groups", { keyPath: "groupName" }).createIndex(
+                            "groupName",
+                            "groupName",
+                            { unique: true },
+                        );
+                        db.createObjectStore("playlists", { keyPath: "playlistId" }).createIndex(
+                            "playlistId",
+                            "playlistId",
+                            { unique: true },
+                        );
+                        db.createObjectStore("playlist_videos", { keyPath: "videoId" }).createIndex(
+                            "videoId",
+                            "videoId",
+                            { unique: true },
+                        );
+                    };
+                    request.onsuccess = () => {
+                        request.result.close();
+                        resolve();
+                    };
+                    request.onerror = () => reject(request.error);
+                }),
+        );
         const pageErrors = [];
         page.on("pageerror", e => {
             pageErrors.push(e.message);
@@ -109,8 +152,6 @@ const fs = require("node:fs");
                 body = { countries: ["US"], imageProxyUrl: "http://localhost:4173", registrationDisabled: true };
             else if (url.pathname.endsWith("/trending")) body = [rec("abcdefghijk")];
             else if (url.pathname.endsWith("/subscriptions/unauthenticated")) {
-                // Model API latency during the existing asynchronous DB migration.
-                await page.waitForFunction(() => !!window.db);
                 body = [];
             }
             return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
@@ -195,9 +236,16 @@ const fs = require("node:fs");
         await page.reload();
         await selected("comments");
         await recsTab.click();
+        await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
         await recsPanel.getByText("Recommended fixture video").first().click();
         await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
         await selected("comments");
+        await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
+        await recsTab.click();
+        await page.goBack();
+        await selected("comments");
+        await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
+        assert.equal(await page.locator(".shaka-controls-container").count(), 1);
         // Pagination occurs near the visible comment list's end.
         await commentsPanel.locator('a[href="/channel/fixture"]').last().scrollIntoViewIfNeeded();
         await page.evaluate(() => window.dispatchEvent(new Event("scroll")));
@@ -231,6 +279,9 @@ const fs = require("node:fs");
         console.log(
             "Watch tabs, breakpoints, sticky scrolling, pagination, defaults, keyboard, states and avatar fallbacks passed.",
         );
+    } catch (error) {
+        console.error("::error::" + String(error.stack || error).replaceAll("\n", "%0A"));
+        throw error;
     } finally {
         await browser.close();
     }

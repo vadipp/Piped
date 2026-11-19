@@ -761,7 +761,8 @@ function destroy(hotkeys) {
         if (!document.pictureInPictureElement) playerInstance = undefined;
     }
     if (hotkeys) hotkeysLib?.unbind();
-    container.value?.querySelectorAll("div").forEach(node => node.remove());
+    // Shaka removes its controls asynchronously; removing their DOM here races
+    // that cleanup and can also remove elements owned by Vue.
 }
 
 onMounted(() => {
