@@ -19,8 +19,9 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec prettier --check src/components/ModalComponent.vue tests/sharing.cjs src/components/ShareModal.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue tests/watch-layout.cjs src/locales/en.json src/locales/ru.json
-      - run: pnpm exec eslint src/components/ShareModal.vue src/components/ModalComponent.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue tests/sharing.cjs tests/watch-layout.cjs
+      - run: pnpm exec prettier --check src/components/ModalComponent.vue tests/sharing.cjs src/components/ShareModal.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue src/components/VideoPlayer.vue src/utils/SubtitleUtils.js tests/subtitles.cjs tests/watch-layout.cjs src/locales/en.json src/locales/ru.json
+      - run: pnpm exec eslint src/components/ShareModal.vue src/components/ModalComponent.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue src/components/VideoPlayer.vue src/utils/SubtitleUtils.js tests/subtitles.cjs tests/sharing.cjs tests/watch-layout.cjs
+      - run: node tests/subtitles.cjs
       - run: pnpm build && ./localizefonts.sh
       - name: Install browser tooling
         timeout-minutes: 6

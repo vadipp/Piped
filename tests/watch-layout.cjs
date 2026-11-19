@@ -21,6 +21,37 @@ const fs = require("node:fs");
         let mode = "normal",
             pages = 0,
             firstPages = 0;
+        const subtitleRequests = [];
+        let releaseSubtitle;
+        const subtitleCodes = [
+            "en",
+            "fr",
+            "de",
+            "es",
+            "it",
+            "nl",
+            "pl",
+            "pt",
+            "ru",
+            "uk",
+            "ar",
+            "bn",
+            "hi",
+            "id",
+            "ja",
+            "ko",
+            "ml",
+            "pa",
+            "ta",
+            "te",
+            "iw",
+        ];
+        const subtitles = subtitleCodes.map(code => ({
+            code,
+            name: code === "en" ? "English" : code === "fr" ? "French" : code,
+            mimeType: "application/ttml+xml",
+            url: "http://localhost:4173/api/timedtext?fmt=ttml&lang=" + code,
+        }));
         const svg =
             '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#64748b"/><circle cx="24" cy="19" r="9" fill="#cbd5e1"/></svg>';
         const comment = (id, thumbnail = null) => ({
@@ -124,6 +155,21 @@ const fs = require("node:fs");
         await page.route("**/api/**", async route => {
             const url = new URL(route.request().url());
             let body = {};
+            if (url.pathname.endsWith("/api/timedtext")) {
+                subtitleRequests.push(url.searchParams.get("lang"));
+                assert.equal(url.searchParams.get("fmt"), "vtt");
+                if (url.searchParams.get("lang") === "fr")
+                    await new Promise(resolve => {
+                        releaseSubtitle = resolve;
+                    });
+                await route
+                    .fulfill({
+                        contentType: "text/vtt",
+                        body: "WEBVTT\n\n00:00:00.000 --> 00:01:00.000\nFixture caption\n",
+                    })
+                    .catch(() => {});
+                return;
+            }
             if (url.pathname.includes("/nextpage/comments/")) {
                 if (url.searchParams.get("nextpage") === "replies")
                     body = { comments: [comment("reply")], nextpage: null };
@@ -166,7 +212,7 @@ const fs = require("node:fs");
                     duration: 60,
                     tags: [],
                     chapters: [],
-                    subtitles: [],
+                    subtitles,
                     previewFrames: [],
                     audioStreams: [],
                     videoStreams: [
@@ -196,6 +242,56 @@ const fs = require("node:fs");
             assert.equal(await page.locator("#watch-tab-" + name).getAttribute("aria-selected"), "true");
         await goto();
         await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
+        await page.waitForFunction(() => document.querySelector("video").textTracks.length === 21);
+        assert.deepEqual(subtitleRequests, [], "captions off must not fetch any of the 21 advertised languages");
+        const captionMenu = page.locator(".shaka-text-languages");
+        const openCaptions = async () => {
+            if (await captionMenu.isVisible()) return;
+            await page.locator("[data-shaka-player-container]").hover();
+            if (!(await page.locator(".shaka-caption-button").isVisible()))
+                await page.locator(".shaka-overflow-menu-button").click();
+            await page.locator(".shaka-caption-button").click();
+        };
+        await openCaptions();
+        await captionMenu.getByRole("button", { name: "English", exact: true }).click();
+        await page.waitForFunction(() =>
+            [...document.querySelector("video").textTracks].some(
+                track => track.language === "en" && track.mode === "showing" && track.cues?.length,
+            ),
+        );
+        assert.deepEqual(subtitleRequests, ["en"]);
+        await page.locator("video").evaluate(video => {
+            video.muted = true;
+            video.loop = true;
+            window.fixturePlaybackTicks = 0;
+            video.addEventListener("timeupdate", () => window.fixturePlaybackTicks++);
+            return video.play();
+        });
+        await openCaptions();
+        await captionMenu.getByRole("button", { name: "French", exact: true }).click();
+        await page.waitForFunction(() =>
+            [...document.querySelector("video").textTracks].some(
+                track => track.language === "fr" && track.mode === "showing",
+            ),
+        );
+        const ticks = await page.evaluate(() => window.fixturePlaybackTicks);
+        await page.waitForTimeout(10000);
+        assert.ok(
+            await page.evaluate(before => window.fixturePlaybackTicks > before + 10, ticks),
+            "playback must continue while a caption response hangs",
+        );
+        assert.deepEqual(subtitleRequests, ["en", "fr"], "a hanging subtitle must not start a retry flood");
+        await openCaptions();
+        await captionMenu.locator(".shaka-turn-captions-off-button").click();
+        releaseSubtitle();
+        await page.keyboard.press("Escape");
+        await page.locator("video").evaluate(video => {
+            video.pause();
+            video.loop = false;
+        });
+        console.log(
+            "21 languages advertised, none fetched when off, one fetched on selection, playback continued through a hanging caption without retries.",
+        );
         await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
         await selected("comments");
         assert.equal(await recsPanel.isVisible(), false);

@@ -9,6 +9,7 @@
             ref="videoEl"
             class="w-full"
             data-shaka-player
+            crossorigin="anonymous"
             :autoplay="shouldAutoPlay"
             :loop="selectedAutoLoop"
             playsinline
@@ -71,6 +72,7 @@ import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted } fro
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { parseTimeParam } from "@/utils/Misc";
+import { prepareSubtitle, configureSubtitleRequest } from "@/utils/SubtitleUtils.js";
 import ModalComponent from "./ModalComponent.vue";
 import {
     getPreferenceBoolean,
@@ -554,9 +556,9 @@ async function setPlayerAttrs(localPlayer, el, uri, mime, shaka) {
                 playerInstance.selectVariantTrack(bestStream, true);
             }
 
-            await Promise.all(
-                props.video.subtitles.map(subtitle => {
-                    return playerInstance.addTextTrackAsync(
+            const subtitlesReady = Promise.allSettled(
+                props.video.subtitles.map(prepareSubtitle).map(subtitle => {
+                    return localPlayer.addTextTrackAsync(
                         subtitle.url,
                         subtitle.code,
                         "subtitles",
@@ -571,8 +573,11 @@ async function setPlayerAttrs(localPlayer, el, uri, mime, shaka) {
             el.playbackRate = rate;
             el.defaultPlaybackRate = rate;
 
-            applyPreferredTextTrack();
             await setupThumbnailTrack();
+            // Optional subtitles must not delay volume/rate/thumbnail setup or
+            // turn a failed caption into a video playback error.
+            await subtitlesReady;
+            if (!destroying.value && playerInstance === localPlayer) applyPreferredTextTrack();
         })
         .catch(e => {
             console.error(e);
@@ -683,6 +688,7 @@ async function loadVideo() {
             }
 
             localPlayer.getNetworkingEngine().registerRequestFilter((_type, request) => {
+                configureSubtitleRequest(request, props.video.subtitles);
                 const uri = request.uris[0];
                 var url = new URL(uri);
                 const headers = request.headers;
