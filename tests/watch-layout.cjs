@@ -12,6 +12,7 @@ const fs = require("node:fs");
             localStorage.setItem("instance", "http://localhost:4173/api");
             localStorage.setItem("sponsorblock", "false");
             localStorage.setItem("autoplay", "0");
+            localStorage.setItem("playerAutoPlay", "false");
             localStorage.setItem("minimizeComments", "true");
             localStorage.setItem("minimizeRecommendations", "true");
         });
@@ -44,7 +45,10 @@ const fs = require("node:fs");
         });
         const page = await context.newPage();
         const pageErrors = [];
-        page.on("pageerror", e => pageErrors.push(e.message));
+        page.on("pageerror", e => {
+            pageErrors.push(e.message);
+            console.error("::error::" + String(e.stack || e).replaceAll("\n", "%0A"));
+        });
         await page.route("**/fixture-avatar.svg", route => route.fulfill({ contentType: "image/svg+xml", body: svg }));
         await page.route("**/broken-avatar.png", route => route.fulfill({ status: 404, body: "missing" }));
         await page.route("**/api/**", async route => {
@@ -104,10 +108,15 @@ const fs = require("node:fs");
             } else if (url.pathname.endsWith("/config"))
                 body = { countries: ["US"], imageProxyUrl: "http://localhost:4173", registrationDisabled: true };
             else if (url.pathname.endsWith("/trending")) body = [rec("abcdefghijk")];
+            else if (url.pathname.endsWith("/subscriptions/unauthenticated")) {
+                // Model API latency during the existing asynchronous DB migration.
+                await page.waitForFunction(() => !!window.db);
+                body = [];
+            }
             return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
         });
         await page.route("**/fixture.mp4", route =>
-            route.fulfill({ status: 404, body: "UI fixture: media unavailable" }),
+            route.fulfill({ contentType: "video/webm", body: fs.readFileSync("/tmp/watch-fixture.webm") }),
         );
         const goto = async (id = "abcdefghijk") => {
             await page.goto("http://localhost:4173/watch?v=" + id);
@@ -120,6 +129,7 @@ const fs = require("node:fs");
         const selected = async name =>
             assert.equal(await page.locator("#watch-tab-" + name).getAttribute("aria-selected"), "true");
         await goto();
+        await page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
         await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
         await selected("comments");
         assert.equal(await recsPanel.isVisible(), false);
@@ -164,7 +174,10 @@ const fs = require("node:fs");
                 await selected("comments");
                 const bounds = await commentsPanel.locator('span[aria-hidden="true"]').first().boundingBox();
                 assert.equal(bounds.width, 48);
-                if (width === 390) await page.screenshot({ path: "test-results/watch-phone.png" });
+                if (width === 390) {
+                    await page.getByRole("tablist").evaluate(el => el.scrollIntoView({ block: "start" }));
+                    await page.screenshot({ path: "test-results/watch-phone.png" });
+                }
             } else {
                 await page.getByRole("button", { name: /Show Comments/ }).click();
                 await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
@@ -212,7 +225,7 @@ const fs = require("node:fs");
         await page.getByRole("tab", { name: /Комментарии/ }).waitFor();
         await page.getByRole("tab", { name: "Рекомендации", exact: true }).waitFor();
         await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
-        await commentsTab.scrollIntoViewIfNeeded();
+        await page.getByRole("tablist").evaluate(el => el.scrollIntoView({ block: "start" }));
         await page.screenshot({ path: "test-results/watch-phone-ru.png" });
         assert.deepEqual(pageErrors, []);
         console.log(
