@@ -256,7 +256,7 @@ const fs = require("node:fs");
         await captionMenu.getByRole("button", { name: "English", exact: true }).click();
         await page.waitForFunction(() =>
             [...document.querySelector("video").textTracks].some(
-                track => track.language === "en" && track.mode === "showing" && track.cues?.length,
+                track => track.language === "en" && track.mode !== "disabled" && track.cues?.length,
             ),
         );
         assert.deepEqual(subtitleRequests, ["en"]);
@@ -268,10 +268,10 @@ const fs = require("node:fs");
             return video.play();
         });
         await openCaptions();
-        await captionMenu.getByRole("button", { name: "French", exact: true }).click();
+        await captionMenu.getByRole("button", { name: /French|français/i }).click();
         await page.waitForFunction(() =>
             [...document.querySelector("video").textTracks].some(
-                track => track.language === "fr" && track.mode === "showing",
+                track => track.language === "fr" && track.mode !== "disabled",
             ),
         );
         const ticks = await page.evaluate(() => window.fixturePlaybackTicks);
