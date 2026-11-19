@@ -30,7 +30,7 @@ jobs:
           timeout 360 /tmp/sharing-browser/node_modules/.bin/playwright install --with-deps --only-shell chromium
       - name: Install screenshot fonts
         timeout-minutes: 3
-        run: sudo DEBIAN_FRONTEND=noninteractive timeout 120 apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 install -y fonts-noto-core fonts-noto-color-emoji
+        run: .github/setup-browser-fonts.sh
       - name: Start production preview
         run: |
           pnpm preview --host localhost > /tmp/preview.log 2>&1 &
