@@ -280,7 +280,7 @@
                         role="tablist"
                         :aria-label="$t('watch.details')"
                         class="sticky top-0 z-20 mb-3 flex border-b border-gray-300 bg-white dark:border-dark-400 dark:bg-dark-900"
-                        @keydown="onTabKeydown"
+                        @keydown.stop="onTabKeydown"
                     >
                         <button
                             v-for="tab in ['comments', 'recommendations']"

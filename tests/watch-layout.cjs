@@ -211,6 +211,7 @@ const fs = require("node:fs");
         await page.reload();
         await page.getByRole("tab", { name: /Комментарии/ }).waitFor();
         await page.getByRole("tab", { name: "Рекомендации", exact: true }).waitFor();
+        await commentsPanel.getByText("@viewer0", { exact: true }).waitFor();
         await commentsTab.scrollIntoViewIfNeeded();
         await page.screenshot({ path: "test-results/watch-phone-ru.png" });
         assert.deepEqual(pageErrors, []);
@@ -221,6 +222,6 @@ const fs = require("node:fs");
         await browser.close();
     }
 })().catch(error => {
-    console.error(error);
+    console.error("::error::" + String(error.stack || error).replaceAll("\n", "%0A"));
     process.exitCode = 1;
 });
