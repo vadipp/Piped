@@ -8,6 +8,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -18,16 +19,23 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec prettier --check src/components/ModalComponent.vue tests/sharing.cjs src/components/ShareModal.vue src/locales/en.json src/locales/ru.json
-      - run: pnpm exec eslint src/components/ShareModal.vue src/components/ModalComponent.vue tests/sharing.cjs
+      - run: pnpm exec prettier --check src/components/ModalComponent.vue tests/sharing.cjs src/components/ShareModal.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue tests/watch-layout.cjs src/locales/en.json src/locales/ru.json
+      - run: pnpm exec eslint src/components/ShareModal.vue src/components/ModalComponent.vue src/components/CommentAvatar.vue src/components/CommentItem.vue src/components/WatchVideo.vue tests/sharing.cjs tests/watch-layout.cjs
       - run: pnpm build && ./localizefonts.sh
       - name: Browser sharing flow
         run: |
           npm install --prefix /tmp/sharing-browser --no-package-lock playwright@1.56.1
           /tmp/sharing-browser/node_modules/.bin/playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-core fonts-noto-color-emoji
           pnpm preview --host localhost > /tmp/preview.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:4173/ >/dev/null && break; sleep 1; done
           NODE_PATH=/tmp/sharing-browser/node_modules node tests/sharing.cjs
+          NODE_PATH=/tmp/sharing-browser/node_modules node tests/watch-layout.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watch-layout-screenshots
+          path: test-results/
       - run: mv dist dist-ci
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
@@ -67,4 +75,4 @@ jobs:
       - name: Publish image bundle
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "image-${GITHUB_SHA}" image.tar.gz image.tar.gz.sha256 image-id.txt revision.txt --title "Sharing frontend ${GITHUB_SHA:0:12}" --notes "Linux amd64 frontend image built from this revision. No instance configuration is included."
+        run: gh release create "image-${GITHUB_SHA}" image.tar.gz image.tar.gz.sha256 image-id.txt revision.txt test-results/*.png --title "Sharing frontend ${GITHUB_SHA:0:12}" --notes "Linux amd64 frontend image built from this revision. No instance configuration is included. Screenshots use synthetic fixture content."

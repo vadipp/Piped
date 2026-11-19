@@ -273,14 +273,52 @@
                 </select>
 
                 <hr />
-                <a
-                    v-t="`actions.${showRecs ? 'minimize_recommendations' : 'show_recommendations'}`"
-                    class="mb-2 inline-block w-auto cursor-pointer rounded-sm bg-gray-300 py-2 text-gray-600 hover:bg-gray-500 hover:text-white focus:shadow-red-400 focus:outline-2 focus:outline-red-500 max-md:px-2 md:px-4 dark:bg-dark-400 dark:text-gray-400 dark:hover:bg-dark-300"
-                    @click="showRecs = !showRecs"
-                />
-                <div v-if="isMobile">
-                    <hr v-show="showRecs" />
-                    <div v-show="showRecs">
+                <section class="min-w-0">
+                    <div
+                        v-if="isMobile"
+                        ref="mobileTabsEl"
+                        role="tablist"
+                        :aria-label="$t('watch.details')"
+                        class="sticky top-0 z-20 mb-3 flex border-b border-gray-300 bg-white dark:border-dark-400 dark:bg-dark-900"
+                        @keydown="onTabKeydown"
+                    >
+                        <button
+                            v-for="tab in ['comments', 'recommendations']"
+                            :id="'watch-tab-' + tab"
+                            :key="tab"
+                            role="tab"
+                            :aria-selected="mobileTab === tab"
+                            :aria-controls="'watch-panel-' + tab"
+                            :tabindex="mobileTab === tab ? 0 : -1"
+                            class="min-w-0 flex-1 border-b-2 px-2 py-3 text-center font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-red-500"
+                            :class="
+                                mobileTab === tab
+                                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400'
+                            "
+                            @click="selectMobileTab(tab)"
+                        >
+                            {{ $t("watch." + tab) }}
+                            <span v-if="tab === 'comments' && comments?.commentCount != null && !comments.disabled"
+                                >({{ numberFormat(comments.commentCount) }})</span
+                            >
+                        </button>
+                    </div>
+                    <a
+                        v-else
+                        v-t="`actions.${showRecs ? 'minimize_recommendations' : 'show_recommendations'}`"
+                        class="mb-2 inline-block w-auto cursor-pointer rounded-sm bg-gray-300 py-2 text-gray-600 hover:bg-gray-500 hover:text-white focus:shadow-red-400 focus:outline-2 focus:outline-red-500 max-md:px-2 md:px-4 dark:bg-dark-400 dark:text-gray-400 dark:hover:bg-dark-300"
+                        @click="showRecs = !showRecs"
+                    />
+                    <div
+                        v-if="isMobile"
+                        id="watch-panel-recommendations"
+                        v-show="mobileTab === 'recommendations'"
+                        role="tabpanel"
+                        aria-labelledby="watch-tab-recommendations"
+                        tabindex="0"
+                        class="min-h-[calc(100dvh-4rem)]"
+                    >
                         <ContentItem
                             v-for="related in video.relatedStreams"
                             :key="related.url"
@@ -290,41 +328,52 @@
                             height="94"
                             width="168"
                         />
-                    </div>
-                    <hr class="" />
-                </div>
-
-                <div class="flex flex-col">
-                    <div class="">
-                        <button
-                            v-if="!comments?.disabled"
-                            class="mb-2 inline-block w-auto cursor-pointer rounded-sm bg-gray-300 py-2 text-gray-600 hover:bg-gray-500 hover:text-white focus:shadow-red-400 focus:outline-2 focus:outline-red-500 max-md:px-2 md:px-4 dark:bg-dark-400 dark:text-gray-400 dark:hover:bg-dark-300"
-                            @click="toggleCommentsVisibility"
-                            v-text="
-                                `${$t(
-                                    showComments ? 'actions.minimize_comments' : 'actions.show_comments',
-                                )} (${numberFormat(comments?.commentCount)})`
-                            "
+                        <p
+                            v-if="!video.relatedStreams.length"
+                            v-t="'watch.no_recommendations'"
+                            class="my-8 text-center"
                         />
                     </div>
-                    <div v-if="!showComments" class=""></div>
-                    <div v-else-if="!comments" class="">
-                        <p v-t="'comment.loading'" class="mt-8 text-center"></p>
+                    <div
+                        id="watch-panel-comments"
+                        v-show="!isMobile || mobileTab === 'comments'"
+                        :role="isMobile ? 'tabpanel' : undefined"
+                        :aria-labelledby="isMobile ? 'watch-tab-comments' : undefined"
+                        :tabindex="isMobile ? 0 : undefined"
+                        class="flex min-w-0 flex-col"
+                        :class="{ 'min-h-[calc(100dvh-4rem)]': isMobile }"
+                    >
+                        <div v-if="!isMobile">
+                            <button
+                                v-if="!comments?.disabled"
+                                class="mb-2 inline-block w-auto cursor-pointer rounded-sm bg-gray-300 py-2 text-gray-600 hover:bg-gray-500 hover:text-white focus:shadow-red-400 focus:outline-2 focus:outline-red-500 max-md:px-2 md:px-4 dark:bg-dark-400 dark:text-gray-400 dark:hover:bg-dark-300"
+                                @click="toggleCommentsVisibility"
+                                v-text="
+                                    `${$t(showComments ? 'actions.minimize_comments' : 'actions.show_comments')}${comments?.commentCount != null ? ' (' + numberFormat(comments.commentCount) + ')' : ''}`
+                                "
+                            />
+                        </div>
+                        <div v-show="commentsVisible">
+                            <div v-if="commentsError" class="my-8 text-center">
+                                <p v-t="'comment.load_error'" />
+                                <button v-t="'comment.retry'" class="mt-2 underline" @click="getComments" />
+                            </div>
+                            <p v-else-if="!comments" v-t="'comment.loading'" class="mt-8 text-center" />
+                            <p v-else-if="comments.disabled" v-t="'comment.disabled'" class="mt-8 text-center" />
+                            <div v-else ref="commentsEl">
+                                <p v-if="!comments.comments.length" v-t="'comment.empty'" class="my-8 text-center" />
+                                <CommentItem
+                                    v-for="comment in comments.comments"
+                                    :key="comment.commentId"
+                                    :comment="comment"
+                                    :uploader="video.uploader"
+                                    :uploader-avatar-url="video.uploaderAvatar"
+                                    :video-id="getVideoId()"
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div v-else-if="comments.disabled" class="">
-                        <p v-t="'comment.disabled'" class="mt-8 text-center"></p>
-                    </div>
-                    <div v-else ref="commentsEl" class="">
-                        <CommentItem
-                            v-for="comment in comments.comments"
-                            :key="comment.commentId"
-                            :comment="comment"
-                            :uploader="video.uploader"
-                            :uploader-avatar-url="video.uploaderAvatar"
-                            :video-id="getVideoId()"
-                        />
-                    </div>
-                </div>
+                </section>
             </div>
             <div v-if="video && showDesktopSidebar" class="w-96 flex-none">
                 <ChaptersBar
@@ -359,7 +408,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted } from "vue";
+import { ref, computed, onMounted, onActivated, onDeactivated, onUnmounted, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import VideoPlayer from "./VideoPlayer.vue";
 import ContentItem from "./ContentItem.vue";
@@ -399,6 +448,10 @@ const smallViewQuery = window.matchMedia("(max-width: 640px)");
 
 const videoPlayer = ref(null);
 const commentsEl = ref(null);
+const mobileTabsEl = ref(null);
+const mobileTab = ref("comments");
+const commentsError = ref(false);
+let commentsLoading = false;
 
 const video = ref(null);
 const playlistId = ref(null);
@@ -418,7 +471,7 @@ const active = ref(true);
 const smallView = ref(smallViewQuery.matches);
 const showModal = ref(false);
 const showShareModal = ref(false);
-const isMobile = ref(true);
+const isMobile = ref(window.innerWidth < 1024);
 const currentTime = ref(0);
 const shouldShowToast = ref(false);
 let timeoutCounter = null;
@@ -503,11 +556,33 @@ async function fetchSponsors() {
     return sponsorsData;
 }
 
+const commentsVisible = computed(() => (isMobile.value ? mobileTab.value === "comments" : showComments.value));
+
+watch(commentsVisible, visible => {
+    if (visible && active.value && !isEmbed.value && comments.value === null) getComments();
+});
+
+async function selectMobileTab(tab) {
+    const wasSticky = mobileTabsEl.value?.getBoundingClientRect().top <= 0;
+    mobileTab.value = tab;
+    await nextTick();
+    if (wasSticky) mobileTabsEl.value?.scrollIntoView({ block: "start" });
+}
+
+function onTabKeydown(event) {
+    const tabs = ["comments", "recommendations"];
+    let tab;
+    if (event.key === "Home") tab = tabs[0];
+    else if (event.key === "End") tab = tabs[1];
+    else if (["ArrowLeft", "ArrowRight"].includes(event.key)) tab = tabs[1 - tabs.indexOf(mobileTab.value)];
+    else return;
+    event.preventDefault();
+    selectMobileTab(tab);
+    document.getElementById("watch-tab-" + tab)?.focus({ preventScroll: true });
+}
+
 function toggleCommentsVisibility() {
     showComments.value = !showComments.value;
-    if (showComments.value && comments.value === null) {
-        fetchCommentsData();
-    }
 }
 
 function fetchCommentsData() {
@@ -582,7 +657,18 @@ async function getSponsors() {
 }
 
 async function getComments() {
-    comments.value = await fetchCommentsData();
+    if (commentsLoading) return;
+    commentsLoading = true;
+    commentsError.value = false;
+    try {
+        const data = await fetchCommentsData();
+        if (data.error) throw new Error(data.message || data.error);
+        comments.value = data;
+    } catch {
+        commentsError.value = true;
+    } finally {
+        commentsLoading = false;
+    }
 }
 
 async function fetchSubscribedStatus() {
@@ -623,17 +709,24 @@ function handleTimestampLinks(target) {
     return false;
 }
 
-function handleScroll() {
-    if (loading || !comments.value || !comments.value.nextpage) return;
-    if (window.innerHeight + window.scrollY >= commentsEl.value?.offsetHeight - window.innerHeight) {
+async function handleScroll() {
+    if (!active.value || !commentsVisible.value || loading || !comments.value?.nextpage || !commentsEl.value) return;
+    const bounds = commentsEl.value.getBoundingClientRect();
+    if (bounds.bottom <= window.innerHeight * 2) {
         loading = true;
-        fetchJson(apiUrl() + "/nextpage/comments/" + getVideoId(), {
-            nextpage: comments.value.nextpage,
-        }).then(json => {
-            comments.value.nextpage = json.nextpage;
+        try {
+            const json = await fetchJson(apiUrl() + "/nextpage/comments/" + getVideoId(), {
+                nextpage: comments.value.nextpage,
+            });
+            if (!json.error) {
+                comments.value.nextpage = json.nextpage;
+                comments.value.comments = comments.value.comments.concat(json.comments);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
             loading = false;
-            comments.value.comments = comments.value.comments.concat(json.comments);
-        });
+        }
     }
 }
 
@@ -774,7 +867,6 @@ onMounted(() => {
     index.value = Number(route.query.index);
     getPlaylistData();
     getSponsors();
-    if (!isEmbed.value && showComments.value) getComments();
     if (isEmbed.value) document.querySelector("html").style.overflow = "hidden";
     window.addEventListener("click", handleClick);
     window.addEventListener("resize", () => {
@@ -784,6 +876,7 @@ onMounted(() => {
 
 onActivated(() => {
     active.value = true;
+    mobileTab.value = "comments";
     theaterMode.value = getPreferenceBoolean("theaterMode", window.innerWidth < (window.innerHeight * 4) / 3 + 467);
     selectedAutoPlay.value = getPreferenceNumber("autoplay", 1);
     showComments.value = !getPreferenceBoolean("minimizeComments", false);
@@ -794,6 +887,7 @@ onActivated(() => {
         document.title = video.value.title + " - Piped";
         videoPlayer.value.loadVideo();
     }
+    if (!isEmbed.value && commentsVisible.value && comments.value === null) getComments();
     window.addEventListener("scroll", handleScroll);
 });
 

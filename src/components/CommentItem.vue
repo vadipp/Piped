@@ -1,8 +1,8 @@
 <template>
     <div class="mt-1.5 flex">
-        <img loading="lazy" :src="comment.thumbnail" class="size-12 rounded-full" height="48" width="48" alt="Avatar" />
+        <CommentAvatar :src="comment.thumbnail" class="size-12" />
 
-        <div class="pl-2">
+        <div class="min-w-0 flex-1 pl-2 wrap-anywhere">
             <div>
                 <div v-if="comment.pinned">
                     <i-fa6-solid-thumbtack />
@@ -31,10 +31,10 @@
                 <i-fa6-solid-thumbs-up />
                 <span v-text="numberFormat(comment.likeCount)" />
                 <i-fa6-solid-heart v-if="comment.hearted" :title="$t('actions.creator_liked')" />
-                <img
+                <CommentAvatar
                     v-if="comment.creatorReplied"
                     :src="uploaderAvatarUrl"
-                    class="size-5 rounded-full"
+                    class="size-5"
                     :title="$t('actions.creator_replied')"
                 />
             </div>
@@ -53,7 +53,12 @@
             <div v-show="showingReplies" v-if="replies">
                 <div v-for="reply in replies" :key="reply.commentId" class="w-full">
                     <!-- eslint-disable-next-line vue/no-undef-components -->
-                    <CommentItem :comment="reply" :uploader="uploader" :video-id="videoId" />
+                    <CommentItem
+                        :comment="reply"
+                        :uploader="uploader"
+                        :uploader-avatar-url="uploaderAvatarUrl"
+                        :video-id="videoId"
+                    />
                 </div>
                 <div v-if="nextpage" class="cursor-pointer" @click="loadReplies">
                     <a v-t="'actions.load_more_replies'" />
@@ -67,6 +72,7 @@
 <script setup>
 import { ref } from "vue";
 import CollapsableText from "./CollapsableText.vue";
+import CommentAvatar from "./CommentAvatar.vue";
 import { fetchJson, apiUrl } from "@/composables/useApi.js";
 import { numberFormat } from "@/composables/useFormatting.js";
 
