@@ -30,11 +30,6 @@ jobs:
       - name: Install screenshot fonts
         timeout-minutes: 3
         run: sudo DEBIAN_FRONTEND=noninteractive timeout 120 apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 install -y fonts-noto-core fonts-noto-color-emoji
-      - name: Generate playable UI fixture
-        timeout-minutes: 1
-        run: |
-          command -v ffmpeg
-          timeout 30 ffmpeg -y -v error -f lavfi -i color=c=0x141414:s=320x180:r=5 -t 10 -an -c:v libvpx -deadline realtime -cpu-used 8 -b:v 80k /tmp/watch-fixture.webm
       - name: Start production preview
         run: |
           pnpm preview --host localhost > /tmp/preview.log 2>&1 &

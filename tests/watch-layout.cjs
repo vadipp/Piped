@@ -87,6 +87,33 @@ const fs = require("node:fs");
                     request.onerror = () => reject(request.error);
                 }),
         );
+        // Chromium can create its own tiny, playable VP8 fixture without an encoder dependency.
+        const fixtureVideo = Buffer.from(
+            await page.evaluate(async () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 320;
+                canvas.height = 180;
+                const drawing = canvas.getContext("2d");
+                drawing.fillStyle = "#141414";
+                const stream = canvas.captureStream(5);
+                const recorder = new MediaRecorder(stream, { mimeType: "video/webm;codecs=vp8" });
+                const chunks = [];
+                const complete = new Promise((resolve, reject) => {
+                    recorder.ondataavailable = event => chunks.push(event.data);
+                    recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+                    recorder.onerror = reject;
+                });
+                recorder.start();
+                const frames = setInterval(() => drawing.fillRect(0, 0, 320, 180), 100);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                recorder.stop();
+                const blob = await complete;
+                clearInterval(frames);
+                stream.getTracks().forEach(track => track.stop());
+                return Array.from(new Uint8Array(await blob.arrayBuffer()));
+            }),
+        );
+        assert.ok(fixtureVideo.length > 0);
         const pageErrors = [];
         page.on("pageerror", e => {
             pageErrors.push(e.message);
@@ -156,9 +183,7 @@ const fs = require("node:fs");
             }
             return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
         });
-        await page.route("**/fixture.mp4", route =>
-            route.fulfill({ contentType: "video/webm", body: fs.readFileSync("/tmp/watch-fixture.webm") }),
-        );
+        await page.route("**/fixture.mp4", route => route.fulfill({ contentType: "video/webm", body: fixtureVideo }));
         const goto = async (id = "abcdefghijk") => {
             await page.goto("http://localhost:4173/watch?v=" + id);
             await page.locator("#watch-panel-comments").waitFor();
