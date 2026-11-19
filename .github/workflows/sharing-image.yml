@@ -37,6 +37,19 @@ jobs:
           load: true
           tags: piped-sharing-frontend:${{ github.sha }}
           labels: org.opencontainers.image.revision=${{ github.sha }}
+      - name: Verify patched unprivileged runtime
+        run: |
+          image="piped-sharing-frontend:${GITHUB_SHA}"
+          test "$(docker image inspect "$image" --format '{{.Config.User}}')" = 101
+          docker run --rm --memory=64m --memory-swap=64m --cpus=0.5 --pids-limit=32 --entrypoint nginx "$image" -v 2>&1 | grep -F 'nginx/1.31.9'
+          docker run -d --name frontend-smoke --memory=64m --memory-swap=64m --cpus=0.5 --pids-limit=32 -p 127.0.0.1:18080:8080 -e BACKEND_HOSTNAME=api.example.invalid -e HTTP_PORT=8080 -e HTTP_WORKERS=1 "$image"
+          trap 'docker rm -f frontend-smoke' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18080/ -o /tmp/frontend-smoke.html; then break; fi
+            sleep 1
+          done
+          test -s /tmp/frontend-smoke.html
+          docker exec frontend-smoke nginx -t
       - name: Export image
         run: |
           docker save piped-sharing-frontend:${GITHUB_SHA} | gzip -1 > image.tar.gz
